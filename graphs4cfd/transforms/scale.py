@@ -40,7 +40,7 @@ class ScaleNs():
         
     Args:
         scaling (dict): Dictionary of scaling factors $a$,$b$) for each field. The dictionary can contain the keys 'u', 'v', 'p' and 'Re'.
-        format (str): Format of the field. Can be 'uvp' or 'upvp'.
+        format (str): Format of the field. Can be 'uvp' or 'uv'.
 
     Methods:
         __call__(Graph) -> Graph: Scale the input and target fields of the graph.

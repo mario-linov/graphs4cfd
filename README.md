@@ -1,10 +1,10 @@
 # graphs4cfd
-Graph Neural Networks (GNN) based solvers for Computational Fluid Dynamics (CFD)
+Graph Neural Networks (GNN) based solvers for Computational Fluid Dynamics (CFD).
 
-To date, this repository includes the following type of GNNs:
-- Mult-scale GNNs with low-resolution graphs obtained by Guillard's coarsening
-- MuS-GNN
-- REMuS-GNN
+To date, this repository includes the following GNN types:
+- MuS-GNN - Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
+- REMuS-GNN - Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
+- Mult-scale GNNs with low-resolution graphs obtained by Guillard's coarsening - Appendix C.3 in Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
 
 
 # Citing

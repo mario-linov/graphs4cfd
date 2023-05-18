@@ -8,3 +8,4 @@ from .scale import *
 from .interpolate import *
 from .mus import *
 from .remus import *
+from .mugs import *

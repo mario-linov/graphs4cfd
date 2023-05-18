@@ -1,4 +1,4 @@
-Paameters of the MuS-GNN models for simulating incompressible flow pass a vertical array of vertical cylinders from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
+Parameters of the MuS-GNN models for simulating incompressible flow pass a vertical array of vertical cylinders from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
 The models included are:
     - 1S-GNN: NsOneScaleGNN.chk. Load with: graphs4cfd.nn.mus_gnn.NsOneScaleGNN.load_model('NsOneScaleGNN.chk')

@@ -1,4 +1,4 @@
-Paameters of the multi-scale GNNs with low-resolution graphs otained by Guillard's coarsening.
+Parameters of the multi-scale GNNs with low-resolution graphs otained by Guillard's coarsening.
 See Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
 The models included are:

@@ -1,6 +1,6 @@
 '''
-    Script for training the NsFourScaleGNN model on the NsCircle dataset.
-    This model is referred to as the 4S-GNN in Lino et al. (2022) https://doi.org/10.1063/5.0097679.
+    Script for training the NsTwoScaleGNN model on the NsCircle dataset.
+    This model is referred to as the 2S-GNN in Lino et al. (2022) https://doi.org/10.1063/5.0097679.
 '''
 
 
@@ -11,7 +11,7 @@ import graphs4cfd as gcfd
 
 # Training configuration
 train_config = gcfd.nn.TrainConfig(
-    name            = 'NsFourScaleGNN',
+    name            = 'NsTwoScaleGNN',
     folder          = '.',
     tensor_board    = '.',
     chk_interval    = 1,
@@ -28,6 +28,7 @@ train_config = gcfd.nn.TrainConfig(
     device          = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 )
 
+
 # Training datasets
 path = "<Path to dataset NsCircle.h5>" # Replace with path to NsCircle.h5 (available at https://doi.org/10.5281/zenodo.7870707)
 transform = transforms.Compose([
@@ -38,7 +39,7 @@ transform = transforms.Compose([
     gcfd.transforms.RandomGraphFlip(eq='ns', format='uvp'),
     gcfd.transforms.AddUniformNoise(0.01)
 ])
-dataset = gcfd.datasets.NsCircle(format='uvp', path=path, training_info={"n_in":1, "n_out":train_config['num_steps'][-1], "step":1, "T":100}, transform=transform, preload=True) # If not enough memory, set preload=False
+dataset = gcfd.datasets.NsCircle(format='uvp', path=path, training_info={"n_in":1, "n_out":train_config['num_steps'][-1], "step":1, "T":100}, transform=transform, preload=True) # if not enough memory, set preload=False
 train_set, test_set = torch.utils.data.random_split(dataset, [1000,32])
 train_loader = gcfd.DataLoader(train_set, batch_size=train_config['batch_size'], shuffle=True,  num_workers=4)   
 test_loader  = gcfd.DataLoader(test_set,  batch_size=train_config['batch_size'], shuffle=False, num_workers=4)   
@@ -49,40 +50,29 @@ arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
         "edge_encoder": (2, (128,128,128), False),
-        "node_encoder": (4, (128,128,128), False),
+        "node_encoder": (5, (128,128,128), False),
         # Level 1
         "mp111": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.02),
+        "mp113": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "mp114": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "down_mp12": ((2+128, (128,128,128), True), 0.15),
         # Level 2
-        "mp211": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp212": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp23": ((2+128, (128,128,128), True), 0.04),
-        # Level 3
-        "mp311": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp312": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp34": ((2+128, (128,128,128), True), 0.08),
-        # Level 4
-        "mp41": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp42": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp43": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp44": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp43": ((2+128+128, (128,128,128), True), 0.08),
-        # Level 3
-        "mp321": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp322": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp32": ((2+128+128, (128,128,128), True), 0.04),
-        # Level 2
-        "mp221": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "mp222": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.02),
+        "mp21": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "mp22": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "mp23": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "mp24": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "up_mp21": ((2+128+128, (128,128,128), True), 0.15),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "mp123": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
+        "mp124": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
-        "decoder": (128, (128,128,1), False),
-    }
-model = gcfd.nn.NsFourScaleGNN(arch=arch)
+        "decoder": (128, (128,128,3), False),
+    }    
+model = gcfd.nn.NsTwoScaleGNN(arch=arch)
+print("Number of trainable parameters: ", model.num_params)
 
 
 # Training

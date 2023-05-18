@@ -7,7 +7,7 @@ from .blocks import MLP, EdgeMP, DownEdgeMP, UpEdgeMP, edgeScalarToNodeVector
 from ..graph import Graph
 
 
-class NsRotEquivTreeScaleGNN(Model):
+class NsRotEquiTreeScaleGNN(Model):
     """The three-scale REMuS-GNN for incompressible flow inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:

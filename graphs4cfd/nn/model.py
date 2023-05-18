@@ -36,6 +36,7 @@ class TrainConfig():
             is the loss function used to monitor the improvement (`'training'` or `'validation'`). Defaults to `None`.
         stopping (float, optional): Minimum value of the learning rate. If the learning rate falls below this value, the training is stopped. Defaults to `0.`.
         mixed_precision (bool, optional): If `True`, mixed precision is used. Defaults to `False`.
+        device (Optional[torch.device], optional): Device where the model is trained. If `None`, the model is trained on its current device. Defaults to `None`.
     """
 
     def __init__(self,
@@ -54,7 +55,8 @@ class TrainConfig():
                  grad_clip: Union[None, dict] = None,
                  scheduler: Union[None, dict] = None,
                  stopping: float = 0.,
-                 mixed_precision: bool = False):
+                 mixed_precision: bool = False,
+                 device: Optional[torch.device] = None):
         self.name = name    
         self.folder = folder
         self.checkpoint = checkpoint
@@ -71,6 +73,7 @@ class TrainConfig():
         self.scheduler = scheduler
         self.stopping = stopping
         self.mixed_precision = mixed_precision
+        self.device = device
 
     def __repr__(self):
         return repr(self.__dict__)
@@ -141,7 +144,7 @@ class Model(nn.Module):
         pass
  
     def fit(self,
-            config: TrainConfig,
+            train_config: TrainConfig,
             train_loader: DataLoader,
             test_loader: Union[None, DataLoader] = None):
         """Trains the model.
@@ -151,52 +154,60 @@ class Model(nn.Module):
             train_loader (DataLoader): Training data loader.
             test_loader (Union[None, DataLoader], optional): Test data loader. If `None`, no validation is performed. Defaults to `None`.        
         """
-        criterion = config['training_loss']
-        max_n_out = config['num_steps'][-1] # Maximun number of predicted time-steps
-        num_steps = iter(config['num_steps'])
+        # Change the training device if needed
+        if train_config['device'] is not None and train_config['device'] != self.device:
+            self.to(train_config['device'])
+            self.device = train_config['device']
+        # Set the training loss
+        criterion = train_config['training_loss']
+        max_n_out = train_config['num_steps'][-1] # Maximun number of predicted time-steps
+        num_steps = iter(train_config['num_steps'])
         n_out = next(num_steps)
         # Load checkpoint
         checkpoint = None
         scheduler  = None
-        if config['checkpoint'] is not None and os.path.exists(config['checkpoint']):
-            print("Training from an existing check-point:", config['checkpoint'])
-            checkpoint = torch.load(config['checkpoint'], map_location=self.device)
+        if train_config['checkpoint'] is not None and os.path.exists(train_config['checkpoint']):
+            print("Training from an existing check-point:", train_config['checkpoint'])
+            checkpoint = torch.load(train_config['checkpoint'], map_location=self.device)
             self.load_state_dict(checkpoint['weigths'])
             optimiser = torch.optim.Adam(self.parameters(), lr=checkpoint['lr'])
             optimiser.load_state_dict(checkpoint['optimiser'])
-            if config['scheduler'] is not None: 
-                scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=config['scheduler']['factor'], patience=config['scheduler']['patience'], eps=0.)
+            if train_config['scheduler'] is not None: 
+                scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=train_config['scheduler']['factor'], patience=train_config['scheduler']['patience'], eps=0.)
                 scheduler.load_state_dict(checkpoint['scheduler'])
             while n_out < checkpoint['n_out']: n_out = next(num_steps)
             initial_epoch = checkpoint['epoch']+1
         # Initialise optimiser and scheduler if not previous check-point is used
         else:
             # If a .chk is given but it does not exist such file, notify the user
-            if config['checkpoint'] is not None:
-                print("Not matching check-point file:", config['checkpoint'])
-            print("Training from scratch")
-            optimiser = optim.Adam(self.parameters(), lr=config['lr'])
-            if config['scheduler'] is not None: scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=config['scheduler']['factor'], patience=config['scheduler']['patience'], eps=0.)
+            if train_config['checkpoint'] is not None:
+                print("Not matching check-point file:", train_config['checkpoint'])
+            print('Training from scratch.')
+            optimiser = optim.Adam(self.parameters(), lr=train_config['lr'])
+            if train_config['scheduler'] is not None: scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=train_config['scheduler']['factor'], patience=train_config['scheduler']['patience'], eps=0.)
             initial_epoch = 1
         # If .chk to save exists rename the old version to .bck
-        path = os.path.join(config["folder"], config["name"]+".chk")
+        path = os.path.join(train_config["folder"], train_config["name"]+".chk")
         if os.path.exists(path):
             print('Renaming', path, 'to:', path+'.bck')
             os.rename(path, path+'.bck')
         # Initialise tensor board writer
-        if config['tensor_board'] is not None: writer = SummaryWriter(os.path.join(config["tensor_board"], config["name"]))
+        if train_config['tensor_board'] is not None: writer = SummaryWriter(os.path.join(train_config["tensor_board"], train_config["name"]))
         # Initialise automatic mixed-precision training
         scaler = None
-        if config['mixed_precision']:
+        if train_config['mixed_precision']:
             print("Training with automatic mixed-precision")
             scaler = torch.cuda.amp.GradScaler()
             # Load previos scaler
             if checkpoint is not None and checkpoint['scaler'] is not None:
-                scaler.load_state_dict(checkpoint['scaler'])   
+                scaler.load_state_dict(checkpoint['scaler'])
+        # Print before training
+        print(f'Training on device: {self.device}')
+        print(f'Number of trainable parameters: {self.num_params}')
         # Training loop
-        for epoch in tqdm(range(initial_epoch,config['epochs']+1), desc="Completed epochs", leave=False, position=0):
-            if optimiser.param_groups[0]['lr'] < config['stopping']:
-                print(f"The learning rate is smaller than {config['stopping']}. Stopping training.")
+        for epoch in tqdm(range(initial_epoch,train_config['epochs']+1), desc="Completed epochs", leave=False, position=0):
+            if optimiser.param_groups[0]['lr'] < train_config['stopping']:
+                print(f"The learning rate is smaller than {train_config['stopping']}. Stopping training.")
                 self.save_checkpoint(path, n_out, epoch, optimiser, scheduler=scheduler, scaler=scaler)
                 break
             print("\n")
@@ -209,11 +220,11 @@ class Model(nn.Module):
                 for t in range(n_out):
                     if t > 0:
                         data.field = self.shift_and_replace(data.field, pred.detach())
-                    with torch.cuda.amp.autocast() if config['mixed_precision'] else contextlib.nullcontext(): # Use automatic mixed-precision
+                    with torch.cuda.amp.autocast() if train_config['mixed_precision'] else contextlib.nullcontext(): # Use automatic mixed-precision
                         pred = self.forward(data, t)
                         loss = criterion(data, pred, data.target[:,self.num_fields*t:self.num_fields*(t+1)])
                     # Back-propagation
-                    if config['mixed_precision']:
+                    if train_config['mixed_precision']:
                         scaler.scale(loss).backward()
                     else:
                         loss.backward()
@@ -221,17 +232,17 @@ class Model(nn.Module):
                     training_loss  += loss.item()/n_out
                     gradients_norm += self.grad_norm2(self.parameters())/n_out
                     # Update the weights
-                    if config['mixed_precision']:
+                    if train_config['mixed_precision']:
                         # Clip the gradients
-                        if config['grad_clip'] is not None and epoch > config['grad_clip']["epoch"]:
+                        if train_config['grad_clip'] is not None and epoch > train_config['grad_clip']["epoch"]:
                             scaler.unscale_(optimiser)
-                            nn.utils.clip_grad_norm_(self.parameters(), config['grad_clip']["limit"])
+                            nn.utils.clip_grad_norm_(self.parameters(), train_config['grad_clip']["limit"])
                         scaler.step(optimiser)
                         scaler.update()
                     else:
                         # Clip the gradients
-                        if config['grad_clip'] is not None and epoch > config['grad_clip']["epoch"]:
-                            nn.utils.clip_grad_norm_(self.parameters(), config['grad_clip']["limit"])
+                        if train_config['grad_clip'] is not None and epoch > train_config['grad_clip']["epoch"]:
+                            nn.utils.clip_grad_norm_(self.parameters(), train_config['grad_clip']["limit"])
                         optimiser.step()
                     # Reset the gradients
                     optimiser.zero_grad()
@@ -241,7 +252,7 @@ class Model(nn.Module):
             print(f"Epoch: {epoch:4d}, Training   loss: {training_loss:.4e}, Gradients: {gradients_norm:.4e}")
             # Testing
             if test_loader is not None:
-                validation_criterion = config['validation_loss']
+                validation_criterion = train_config['validation_loss']
                 self.eval()
                 with torch.no_grad(): 
                     validation_loss = 0.
@@ -255,30 +266,30 @@ class Model(nn.Module):
                     validation_loss /= (iteration+1)
                     print(f"Epoch: {epoch:4d}, Validation loss: {validation_loss:.4e}")
             # Log in TensorBoard
-            if config['tensor_board'] is not None:
+            if train_config['tensor_board'] is not None:
                 writer.add_scalar('Loss/train', training_loss,   epoch)
                 if test_loader: writer.add_scalar('Loss/test',  validation_loss, epoch)
             # Update lr
-            if config['scheduler']['loss'][:2] == 'tr':
+            if train_config['scheduler']['loss'][:2] == 'tr':
                 scheduler_loss = training_loss 
-            elif config['scheduler']['loss'][:3] == 'val':
+            elif train_config['scheduler']['loss'][:3] == 'val':
                 scheduler_loss = validation_loss 
             scheduler.step(scheduler_loss)
             # Create training checkpoint
-            if not epoch%config["chk_interval"]:
+            if not epoch%train_config["chk_interval"]:
                 print('Saving check-point in:', path)
                 self.save_checkpoint(path, n_out, epoch, optimiser, scheduler=scheduler, scaler=scaler)
             # Encrease n_out for next epoch
-            if config['add_steps']['loss'][:2] == 'tr':
+            if train_config['add_steps']['loss'][:2] == 'tr':
                 tolerance_loss = training_loss 
-            elif config['add_steps']['loss'][:3] == 'val':
+            elif train_config['add_steps']['loss'][:3] == 'val':
                 tolerance_loss = validation_loss 
             else:
                 raise NameError("Invalid parameter config['add_steps']['loss].")
-            if (tolerance_loss < config['add_steps']['tolerance'] and n_out < max_n_out):
+            if (tolerance_loss < train_config['add_steps']['tolerance'] and n_out < max_n_out):
                 n_out = next(num_steps)
-                optimiser = optim.Adam(self.parameters(), lr=config["lr"])
-                if config['scheduler']["patience"] is not None: scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=config['scheduler']["factor"], patience=config['scheduler']["patience"], eps=0.)
+                optimiser = optim.Adam(self.parameters(), lr=train_config["lr"])
+                if train_config['scheduler']["patience"] is not None: scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=train_config['scheduler']["factor"], patience=train_config['scheduler']["patience"], eps=0.)
         writer.close()
         print("Finished training")
         return
