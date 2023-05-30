@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.nn import voxel_grid
-from torch_scatter import scatter_mean
+from torch_geometric.utils import scatter
 from typing import Tuple, List
 
 from ..graph import Graph
@@ -30,7 +30,7 @@ def grid_clustering(pos_1: torch.Tensor, cell_size_2: torch.Tensor) -> Tuple[tor
         mask2idx[mask_2] = idx
         idx1_to_idx2 = mask2idx[cluster_2] # Lookup table that maps the V^1 index of each node to the V^2 index of its parent node
         # Compute new pos with new cluster indexing
-        pos_2 = scatter_mean(pos_1, cluster_2, dim=0)[mask_2]
+        pos_2 = scatter(pos_1, cluster_2, dim=0, reduce='mean')[mask_2]
         # Realtive position 
         e_12  = pos_2[idx1_to_idx2] - pos_1
         e_12 /= cell_size_2

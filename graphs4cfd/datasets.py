@@ -20,7 +20,7 @@ class Dataset(torch.utils.data.Dataset):
         idx (int, optional): The index of the simulation to load. If :obj:`None`, then all the simulations are loaded.
             (default: :obj:`None`)
         preload (bool, optional): If :obj:`True`, then the data is loaded in memory. If :obj:`False`, then the data
-            is loaded from the h5 file at every access. (default: :obj:`True`)
+            is loaded from the h5 file at every access. (default: :obj:`False`)
     """
 
     def __init__(self,
@@ -28,7 +28,7 @@ class Dataset(torch.utils.data.Dataset):
                  transform: Optional[Callable] = None,
                  training_info: Optional[Dict] = None,
                  idx: int = None,
-                 preload: bool = True):
+                 preload: bool = False):
         self.path = path
         self.transform = transform
         self.training_info = training_info
@@ -137,7 +137,7 @@ class Dataset(torch.utils.data.Dataset):
 
 
 class Adv(Dataset):
-    r"""Dataset for the advection equation. The data is available at ?.
+    r"""Dataset for the advection equation. The data is available at [https://doi.org/10.5281/zenodo.7861710](https://doi.org/10.5281/zenodo.7861710).
 
     Args:
         path (string): Path to the h5 file.
@@ -180,7 +180,7 @@ class Adv(Dataset):
         # Build graph
         graph = Graph()
         graph.pos = data[:, :2]
-        graph.loc = data[:, 2:4] if self.loc else None
+        graph.loc = data[:, 2:4]
         graph.field = data[:, 5+idx0:5+idx1:step]
         graph.target = data[:, 5+idx1:5+idx2:step]
         # BCs
@@ -198,7 +198,7 @@ class Adv(Dataset):
 
 
 class NsCircle(Dataset):
-    r"""Dataset for the incompressible flow around a circular cylinder. The data is available at ?.
+    r"""Dataset for the incompressible flow around a circular cylinder. The data is available at [https://doi.org/10.5281/zenodo.7870707](https://doi.org/10.5281/zenodo.7870707).
 
     Args:
         format (string): The format of the fields, either 'uvp' or 'uv'.
@@ -245,10 +245,10 @@ class NsCircle(Dataset):
         graph = Graph()
         graph.pos = data[:, :2] # x, y
         graph.glob = data[:, 2:3] # Re
-        if format == 'uvp':
+        if self.format == 'uvp':
             graph.field  = data[:, 4:].reshape(N, -1, 3)[:, idx0:idx1:step, :].reshape(N, -1) # u0, v0, p0, ...
             graph.target = data[:, 4:].reshape(N, -1, 3)[:, idx1:idx2:step, :].reshape(N, -1) # un, vn, pn, ...
-        elif format == 'uv':
+        elif self.format == 'uv':
             graph.field  = data[:, 4:].reshape(N, -1, 3)[:, idx0:idx1:step, 0:2].reshape(N, -1) # u0, v0, ...
             graph.field  = data[:, 4:].reshape(N, -1, 3)[:, idx0:idx1:step, 0:2].reshape(N, -1) # un, vn, ...
         # BCs
@@ -267,7 +267,7 @@ class NsCircle(Dataset):
 
 
 class NsEllipse(Dataset):
-    r"""Dataset for the incompressible flow around an elliptical cylinder. The data is available at ?.
+    r"""Dataset for the incompressible flow around an elliptical cylinder. The data is available at [https://doi.org/10.5281/zenodo.7892171](https://doi.org/10.5281/zenodo.7892171).
 
     Args:
         format (string): The format of the fields, either 'uvp' or 'uv'.
@@ -314,9 +314,9 @@ class NsEllipse(Dataset):
         graph = Graph()
         graph.pos = data[:, :2] # x, y
         graph.glob = data[:, 2:3] # Re
-        if format == 'uvp':
+        if self.format == 'uvp':
             num_fields = 3
-        elif format == 'uv':
+        elif self.format == 'uv':
             num_fields = 2
         else:
             raise ValueError(f"Format {format} not supported, use 'uv' or 'uvp'")

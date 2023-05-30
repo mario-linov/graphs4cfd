@@ -3,18 +3,20 @@ from typing import Tuple, Union, Optional
 
 from ..graph import Graph
 from .connect import connect_knn
-from .mus import guillard_coarsening
+from .mugs import guillard_coarsening
 
 
 def extend_graph(edge_index: torch.Tensor,
-                edge_attr: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                edge_attr: torch.Tensor,
+                k: int = None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     r""""Computes the unit vector of each edge, the angle index and the angle attributes for use in REMuS-GNNs.
     It is assumed that all nodes have the same indegree.
     
     Args:
         edge_index (torch.Tensor): Edge index.
         edge_attr (torch.Tensor): Edge attributes.
-        k (int): Number of nearest neighbors.
+        k (int, optional): Indegree of the graph. It is assumed that all nodes have the same indegree.
+            If `None`, `k` has to be computed from `edge_index`.
 
     Returns:
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: with shapes:
@@ -22,7 +24,8 @@ def extend_graph(edge_index: torch.Tensor,
             - angle_index: 2xk|E|
             - angle_attr: |A|x4
     """
-    k = (edge_index[1]==0).sum().item() # Indegree of the graph. It is assumed that all nodes have the same indegree
+    if k is None:
+        k = (edge_index[1]==edge_index[0][1]).sum().item()
     num_edges = edge_index.size(1)
     row, col = edge_index[0], edge_index[1]
     cross_product = lambda a, b: a[:,0]*b[:,1] - a[:,1]*b[:,0]
@@ -119,18 +122,18 @@ class BuildRemusGraph():
         if self.num_levels > 3: graph.edge_index4 = coarse_index4[graph.edge_index4]
         # Extend every graph
         # For G1
-        graph.edgeUnitVector, graph.angle_index, graph.angle_attr = extend_graph(graph.edge_index, graph.edge_attr)
+        graph.edgeUnitVector, graph.angle_index, graph.angle_attr = extend_graph(graph.edge_index, graph.edge_attr, k=self.k)
         graph.edgeUnitVectorInverse = graph.edgeUnitVector.view(graph.num_nodes, -1, 2).pinverse() # Create edgeUnitVectorInverse required for contraction/des-project
         # For G2
-        graph.edgeUnitVector2, graph.angle_index2, graph.angle_attr2 = extend_graph(graph.edge_index2, graph.edge_attr2)
+        graph.edgeUnitVector2, graph.angle_index2, graph.angle_attr2 = extend_graph(graph.edge_index2, graph.edge_attr2, k=self.k)
         graph.edgeUnitVectorInverse2 = graph.edgeUnitVector2.view(graph.coarse_mask2.sum().item(), -1, 2).pinverse() # Create edgeUnitVectorInverse required for contraction/des-project
         # For G3
         if self.num_levels > 2:
-            graph.edgeUnitVector3, graph.angle_index3, graph.angle_attr3 = extend_graph(graph.edge_index3, graph.edge_attr3)
+            graph.edgeUnitVector3, graph.angle_index3, graph.angle_attr3 = extend_graph(graph.edge_index3, graph.edge_attr3, k=self.k)
             graph.edgeUnitVectorInverse3 = graph.edgeUnitVector3.view(graph.coarse_mask3.sum().item(), -1, 2).pinverse() # Create edgeUnitVectorInverse required for contraction/des-project
         # For G4
         if self.num_levels > 3:
-            graph.edgeUnitVector4, graph.angle_index4, graph.angle_attr4 = extend_graph(graph.edge_index4, graph.edge_attr4)  
+            graph.edgeUnitVector4, graph.angle_index4, graph.angle_attr4 = extend_graph(graph.edge_index4, graph.edge_attr4, k=self.k)  
             graph.edgeUnitVectorInverse4 = graph.edgeUnitVector4.view(graph.coarse_mask4.sum().item(), -1, 2).pinverse() # Create edgeUnitVectorInverse required for contraction/des-project
         # Need to define the inter graph angles too ...
         # ... for 1->2 and 2->1

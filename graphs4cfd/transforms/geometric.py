@@ -136,7 +136,7 @@ class RandomGraphRotation():
     def __call__(self, graph: Graph) -> Graph:
         dim = graph.pos.size(1) # Get dimension
         # Random rotation angle(s)
-        theta = np.random.randint(0, 360) if dim == 2 else np.random.randint(0, 360, size=3)
+        theta = np.random.uniform(0, 360) if dim == 2 else np.random.uniform(0, 360, size=(3,))
         return rotate_graph(graph, theta, eq=self.eq, format=self.format)
 
 

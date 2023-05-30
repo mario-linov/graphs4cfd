@@ -1,0 +1,44 @@
+[build-system]
+requires=["flit_core >=3.2,<4"]
+build-backend="flit_core.buildapi"
+
+[project]
+name="graphs4cfd"
+version="0.0.1"
+authors=[
+    {name="Mario Lino"},
+]
+description="Graph Neural Networks library for Computational Fluid Dynamics applications"
+readme="README.md"
+requires-python=">=3.7"
+keywords=[
+    "deep-learning",
+    "pytorch",
+    "graph-neural-networks",
+    "fluid Dynamics",
+    "simulation",
+]
+classifiers=[
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies=[
+    "tqdm",
+    "numpy",
+    "scipy",
+    "h5py",
+    "matplotlib",
+    "h5py",
+    "torch_geometric",
+    "tensorboard",
+    "torch_cluster @ git+https://github.com/rusty1s/pytorch_cluster",
+    "jupyterlab",
+]
+
+[project.optional-dependencies]
+doc = [
+    "spinx",
+]

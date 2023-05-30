@@ -1,17 +1,19 @@
+import os
 import torch
 import torch.nn.functional as F
 from typing import Optional
 
-from .model import Model
+from .model import GNN
 from .blocks import MLP, MP, restriction, knn_interpolate
 from ..graph import Graph
 
 
-class NsTwoGuillardScaleGNN(Model):
+class NsTwoGuillardScaleGNN(GNN):
     """ Two-scale GNN with the low-resolution graph otained by Guillard's coarsening.
     See Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -35,11 +37,21 @@ class NsTwoGuillardScaleGNN(Model):
         "mp124": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
         "decoder": (128, (128,128,3), False),
-    }    
+    } 
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "2GS-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuGSGNN/NsTwoGuillardScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -120,11 +132,12 @@ class NsTwoGuillardScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
     
 
-class NsThreeGuillardScaleGNN(Model):
+class NsThreeGuillardScaleGNN(GNN):
     """ Three-scale GNN with the low-resolution graphs otained by Guillard's coarsening.
     See Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -156,10 +169,20 @@ class NsThreeGuillardScaleGNN(Model):
         # Decoder
         "decoder": (128, (128,128,3), False),
     }
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "3GS-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuGSGNN/NsThreeGuillardScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch):
         self.arch = arch
@@ -271,11 +294,12 @@ class NsThreeGuillardScaleGNN(Model):
         return data.field[:,-self.num_fields:] + output
     
 
-class NsFourGuillardScaleGNN(Model):
+class NsFourGuillardScaleGNN(GNN):
     """ Four-scale GNN with the low-resolution graphs otained by Guillard's coarsening.
     See Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -314,10 +338,20 @@ class NsFourGuillardScaleGNN(Model):
         # Decoder
         "decoder": (128, (128,128,3), False),
     }
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "4GS-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuGSGNN/NsFourGuillardScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch):
         self.arch = arch

@@ -1,16 +1,18 @@
 import torch
 import torch.nn.functional as F
 from typing import Optional
+import os
 
-from .model import Model
+from .model import GNN
 from .blocks import MLP, EdgeMP, DownEdgeMP, UpEdgeMP, edgeScalarToNodeVector
 from ..graph import Graph
 
 
-class NsRotEquiTreeScaleGNN(Model):
+class NsRotEquiTreeScaleGNN(GNN):
     """The three-scale REMuS-GNN for incompressible flow inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Angle-functions ################## Edge-functions ##############
         # Encoder
@@ -40,12 +42,12 @@ class NsRotEquiTreeScaleGNN(Model):
         "mp33":     ((128+2*128, (128,128), True), (128+128, (128,128), True)),
         "mp34":     ((128+2*128, (128,128), True), (128+128, (128,128), True)),
         # Undown_mping 3->2
-        "up_mp32": ((128+128,   (128,128,128), True),), ###### WRONG
+        "up_mp32": (128+128,   (128,128,128), True),
         # Level 2
         "mp221":    ((128+2*128, (128,128), True), (128+128, (128,128), True)),
         "mp222":    ((128+2*128, (128,128), True), (128+128, (128,128), True)),
         # Undown_mping 2->1
-        "up_mp21": ((128+128,   (128,128,128), True),), ###### WRONG
+        "up_mp21": (128+128,   (128,128,128), True),
         # Level 1
         "mp121":    ((128+2*128, (128,128), True), (128+128, (128,128), True)),
         "mp122":    ((128+2*128, (128,128), True), (128+128, (128,128), True)),
@@ -54,10 +56,20 @@ class NsRotEquiTreeScaleGNN(Model):
         # Decoder
         "decoder": (128, (128,1), False),
     }
+    ```
+    
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs) -> None:
+        if model is not None:
+            if model == "RE3S-GNN-NsEllipse-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsREMuSGNN/NsRotEquiThreeScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
         self.num_fields = 2
 
     def load_arch(self, arch: dict):
@@ -89,12 +101,12 @@ class NsRotEquiTreeScaleGNN(Model):
         self.mp33 = EdgeMP(*arch["mp33"])
         self.mp34 = EdgeMP(*arch["mp34"])
         # Undown_mping 3->2
-        self.up_mp32 = UpEdgeMP(*arch["up_mp32"])
+        self.up_mp32 = UpEdgeMP(arch["up_mp32"])
         # Level 2
         self.mp221 = EdgeMP(*arch["mp221"])
         self.mp222 = EdgeMP(*arch["mp222"])
         # Undown_mping 2->1
-        self.up_mp21 = UpEdgeMP(*arch["up_mp21"])
+        self.up_mp21 = UpEdgeMP(arch["up_mp21"])
         # Level 1
         self.mp121 = EdgeMP(*arch["mp121"])
         self.mp122 = EdgeMP(*arch["mp122"])

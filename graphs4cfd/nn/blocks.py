@@ -1,9 +1,7 @@
 import torch
 from torch import nn
-from torch_scatter import scatter_mean, scatter_add
 from typing import Tuple, Union, Optional, Callable
-from torch_sparse import coalesce
-from torch_geometric.utils import remove_self_loops
+from torch_geometric.utils import remove_self_loops, scatter, coalesce
 
 from ..graph import Graph
 
@@ -45,8 +43,8 @@ def knn_interpolate(x: torch.Tensor, y_idx: torch.Tensor, x_idx: torch.Tensor, w
         weights (torch.Tensor): The weights of the interpolation.
     """
     y_num_nodes = y_idx.max().item()+1
-    y  = scatter_add(x[x_idx]*weights, y_idx, dim=0, dim_size=y_num_nodes)
-    y /= scatter_add(weights, y_idx, dim=0, dim_size=y_num_nodes)
+    y  = scatter(x[x_idx]*weights, y_idx, dim=0, dim_size=y_num_nodes, reduce='sum')
+    y /= scatter(weights, y_idx, dim=0, dim_size=y_num_nodes, reduce='sum')
     return y
 
 
@@ -66,7 +64,7 @@ def pool_edge(idxHR_to_idxLR: torch.Tensor, edge_index: torch.Tensor, edge_attr:
     edge_index = idxHR_to_idxLR[edge_index.view(-1)].view(2, -1) # edge indices in the lower resolution graph
     edge_index, edge_attr = remove_self_loops(edge_index, edge_attr) # remove self loops
     if edge_index.numel() > 0:
-        edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes, num_nodes, op=aggr) # aggregate edges
+        edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes, reduce=aggr) # aggregate edges
     return edge_index, edge_attr
 
 
@@ -164,15 +162,9 @@ class GNBlock(nn.Module):
                  node_mlp_args: Tuple,
                  aggr: str = 'mean'):
         super().__init__()
-        self.edge_mlp = MLP(*edge_mlp_args) if self.edge_update else None
-        self.node_mlp = MLP(*node_mlp_args) if self.node_update else None
-        # Aggregation operator
-        if aggr == 'mean':
-            self.aggr_op = scatter_mean
-        elif aggr == 'add' or aggr == 'sum':
-            self.aggr_op = scatter_add
-        else:
-            raise RuntimeError(f'Non-valid value ({aggr}) for attribute "aggr" in class GNBlock.')
+        self.edge_mlp = MLP(*edge_mlp_args)
+        self.node_mlp = MLP(*node_mlp_args)
+        self.aggr = aggr
 
     def reset_parameters(self):
         models = [model for model in [self.node_mlp, self.edge_mlp] if model is not None]
@@ -188,7 +180,7 @@ class GNBlock(nn.Module):
         # Edge update
         e = self.edge_mlp( torch.cat((e, v[row], v[col]), dim=-1) )
         # Edge aggregation
-        aggr = self.aggr_op(e, col, dim=0, dim_size=v.size(0))
+        aggr = scatter(e, col, dim=0, dim_size=v.size(0), reduce=self.aggr)
         # Node update
         v = self.node_mlp( torch.cat((aggr, v), dim=-1) )
         return v, e
@@ -231,12 +223,12 @@ class DownMP(nn.Module):
         graph.pos       = getattr(graph, f'pos_{self.lr_graph_idx}')
         cluster         = getattr(graph, f'cluster_{self.lr_graph_idx}')
         mask            = getattr(graph, f'mask_{self.lr_graph_idx}')
-        idxHr_to_idxLr  = getattr(graph, f'idx{self.hr_graph_idx}_to_{self.lr_graph_idx}')
+        idxHr_to_idxLr  = getattr(graph, f'idx{self.hr_graph_idx}_to_idx{self.lr_graph_idx}')
         e               = getattr(graph, f'e_{self.hr_graph_idx}{self.lr_graph_idx}')
         # Appy edge-model
         e = self.down_mlp( torch.cat((e, graph.field), dim=-1) )
         # Aggregate the edge features
-        graph.field = scatter_mean(e, cluster, dim=0)[mask]
+        graph.field = scatter(e, cluster, dim=0, reduce='mean')[mask]
         # Apply activation
         if activation is not None:
                 graph.field = activation(graph.field)
@@ -286,7 +278,7 @@ class UpMP(nn.Module):
         Returns:
             Graph: The graph object.
         """
-        idxHr_to_idxLr = getattr(graph, f'idx{self.hr_graph_idx}_to_{self.lr_graph_idx}')
+        idxHr_to_idxLr = getattr(graph, f'idx{self.hr_graph_idx}_to_idx{self.lr_graph_idx}')
         # Realtive position 
         e = -getattr(graph, f'e_{self.hr_graph_idx}{self.lr_graph_idx}')
         # Edge-model
@@ -319,13 +311,7 @@ class EdgeMP(nn.Module):
         super().__init__()
         self.angle_mlp = MLP(*angle_mlp_args)
         self.edge_mlp  = MLP(*edge_mlp_args)
-        # Aggregation operator
-        if aggr == 'mean':
-            self.aggr_op = scatter_mean
-        elif aggr == 'add' or aggr == 'sum':
-            self.aggr_op = scatter_add
-        else:
-            raise ValueError(f'Aggregation operator {aggr} not supported, use "mean" or "sum".')
+        self.aggr = aggr
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -341,7 +327,7 @@ class EdgeMP(nn.Module):
         # Angle update
         a = self.angle_mlp( torch.cat((a, e[row], e[col]), dim=1) )
         # Aggregation
-        aggr = self.aggr_op(a, col, dim=0, dim_size=e.size(0))
+        aggr = scatter(a, col, dim=0, dim_size=e.size(0), reduce=self.aggr)
         # Edge update
         e = self.edge_mlp( torch.cat((aggr, e), dim=1) )
         return e, a
@@ -389,7 +375,7 @@ class DownEdgeMP(nn.Module):
         # Angle update
         a12 = self.angle_mlp( torch.cat([a12, e1[row], e2[col]], dim=1) )
         # Aggregation
-        aggr = scatter_mean(a12, col, dim=0, dim_size=e2.size(0))
+        aggr = scatter(a12, col, dim=0, dim_size=e2.size(0), reduce="mean")
         # Edge update
         e2 = self.edge_mlp( torch.cat((aggr, e2), dim=1) )
         return e2

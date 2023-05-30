@@ -29,7 +29,7 @@ def interpolate_nodes(graph: Graph,
         ValueError: If the graph has edges.
     """
     # Check if graph is a set of nodes
-    if hasattr(graph, 'edge_index'):
+    if graph.edge_index is not None:
         raise ValueError("Graphs cannot be interpolated, only sets of nodes.")
     # Dimension of the problem
     dim = pos.size(1)

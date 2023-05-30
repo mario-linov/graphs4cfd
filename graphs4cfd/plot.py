@@ -1,22 +1,27 @@
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
+import numpy as np
 from typing import Union, List, Optional, Tuple
 
 
-def TriangulationSolidMask(pos: torch.Tensor,
-                           bound: torch.Tensor,
-                           boundary_idx: Union[int, List[int]] = 4) -> tri.Triangulation:
+def triang_boundary_mask(pos: torch.Tensor,
+                         bound: torch.Tensor,
+                         boundary_idx: Union[int, List[int]] = None) -> tri.Triangulation:
     """Create a triangulation with a mask for the boundary.
 
     Args:
         pos (torch.Tensor): Node positions. Dim: (num_nodes, 2).
         bound (torch.Tensor): Boundary indices. Dim: (num_nodes,).
-        boundary_idx (Union[int, List[int]], optional): Boundary index or list of boundary indices. Defaults to 4.
+        boundary_idx (Union[int, List[int]], optional): Boundary index or list of boundary indices.
+            If `None`, the boundary is defined as the nodes with boundary index equal to 4. Defaults to `None`.
+        
 
     Returns:
         tri.Triangulation: Triangulation with mask for boundary.
     """
+    if boundary_idx is None:
+        boundary_idx = 4
     pos = pos.cpu()
     bound = bound.cpu()
     # Create triangulation
@@ -31,6 +36,42 @@ def TriangulationSolidMask(pos: torch.Tensor,
         for idx in boundary_idx[1:]: # Iterate over remaining boundary indices
             mask = mask | (bound_on_triang_vertices == idx).all(dim=1) # Update mask
     # Apply mask
+    triang.set_mask(mask)
+    return triang
+
+
+def triang_small_tri_mask(pos: torch.Tensor,
+                          tri_ratio: float,
+                          box: Optional[List[float]] = None) -> tri.Triangulation:
+    """Create a triangulation with a mask for small triangles.
+    
+    Args:
+        pos (torch.Tensor): Node positions. Dim: (num_nodes, 2).
+        tri_ratio (float): Ratio between the area of the smallest triangle and the mean area of all triangles.
+            The triangles with area greater than `tri_ratio` times the mean area are kept.
+        box (Optional[List[float]], optional): Box to limit the domain portion where the mask is applied.
+            Format: [x_min, x_max, y_min, y_max]. If `None`, the mask is applied to the whole domain. Defaults to `None`.
+    """    
+
+    pos = pos.cpu()
+    # Create triangulation
+    triang = tri.Triangulation(pos[:,0], pos[:,1])
+    # Coordinates of triangles vertices
+    x = triang.x[triang.triangles]
+    y = triang.y[triang.triangles]
+    if box is not None:
+        box_mask = (x.max(axis=1) > box[0]) * (x.min(axis=1) < box[1]) * (y.max(axis=1) > box[2]) * (y.min(axis=1) < box[3])
+    # Lenght of the three sides
+    a = np.linalg.norm([x[:,1]-x[:,0],y[:,1]-y[:,0]], axis=0, ord=2)
+    b = np.linalg.norm([x[:,2]-x[:,1],y[:,2]-y[:,1]], axis=0, ord=2)
+    c = np.linalg.norm([x[:,0]-x[:,2],y[:,0]-y[:,2]], axis=0, ord=2)
+    # Semi-perimeter
+    s = (a+b+c)/2
+    # Area
+    A = np.sqrt(s*(s-a)*(s-b)*(s-c))
+    # Upper limit for area of the triangular elements
+    limit = A.mean()*tri_ratio
+    mask = (A>limit)*box_mask if box is not None else (A>limit)
     triang.set_mask(mask)
     return triang
 
@@ -130,7 +171,10 @@ def field(pos: torch.Tensor,
           cmap: Optional[str]="coolwarm",
           file: Optional[str]=None,
           fontsize: Optional[int]=13,
-          bound: Optional[torch.Tensor]=None) -> None:
+          bound: Optional[torch.Tensor]=None,
+          boundary_idx: Optional[Union[int, List[int]]]=None,
+          tri_ratio: Optional[float] = None,
+          box: Optional[List[float]] = None) -> None:
     """Plot field values.
 
     Args:
@@ -142,6 +186,12 @@ def field(pos: torch.Tensor,
         file (Optional[str], optional): File name to save plot. Defaults to None.
         fontsize (Optional[int], optional): Font size. Defaults to 13.
         bound (Optional[torch.Tensor], optional): Boundary mask. Defaults to None.
+        boundary_idx (Optional[Union[int, List[int]]], optional): Boundary index. Defaults to None.
+        tri_ratio (Optional[float], optional): Ratio between the area of the smallest triangle and the mean area of all triangles.
+            The triangles with area greater than `tri_ratio` times the mean area are kept. If `bound` is not `None`, `tri_ratio` is ignored.
+            Defaults to `None`.
+        box (Optional[List[float]], optional): Box to limit the domain portion where the mask defined by `tri_ratio` is applied.
+            Format: [x_min, x_max, y_min, y_max]. If `None`, the mask is applied to the whole domain. Defaults to `None`.      
     
     Returns:
         None
@@ -159,7 +209,9 @@ def field(pos: torch.Tensor,
     fig = plt.figure()
     ax = fig.add_subplot(111)
     if bound is not None:
-        triang = TriangulationSolidMask(pos, bound)
+        triang = triang_boundary_mask(pos, bound, boundary_idx=boundary_idx)
+    elif tri_ratio is not None:
+        triang = triang_small_tri_mask(pos, tri_ratio, box=box)
     else:
         triang = tri.Triangulation(pos[:,0], pos[:,1])
     im = ax.tripcolor(triang, u, vmin=vmin, vmax=vmax, cmap=cmap, shading="gouraud")
@@ -182,13 +234,39 @@ def compare_fields(pos: torch.Tensor,
                    u1: torch.Tensor,
                    u2: torch.Tensor,
                    bound: Optional[torch.Tensor] = None,
+                   boundary_idx: Optional[Union[int, List[int]]] = None,
+                   tri_ratio: Optional[float] = None,
+                   box: Optional[List[float]] = None,
                    figsize: Optional[Tuple[float, float]] = (5,5),
                    vmin: Optional[float] = None,
                    vmax: Optional[float] = None,
                    cmap: Optional[str] = "coolwarm",
                    file: Optional[str] = None,
-                   fontsize: Optional[int] = 13,
-                   labels: Optional[List[str]]=None) -> None:
+                   fontsize: Optional[int] = 13) -> None:
+    r"""Plot two fields side by side.
+    
+    Args:
+        pos (torch.Tensor): Node positions. Dim: (num_nodes, 2).
+        u1 (torch.Tensor): Field values. Dim: (num_nodes,).
+        u2 (torch.Tensor): Field values. Dim: (num_nodes,).
+        bound (Optional[torch.Tensor], optional): Boundary mask. Defaults to None.
+        boundary_idx (Optional[Union[int, List[int]]], optional): Boundary index. Defaults to None.
+        tri_ratio (Optional[float], optional): Ratio between the area of the smallest triangle and the mean area of all triangles.
+            The triangles with area greater than `tri_ratio` times the mean area are kept. If `bound` is not `None`, `tri_ratio` is ignored.
+            Defaults to `None`.
+        box (Optional[List[float]], optional): Box to limit the domain portion where the mask defined by `tri_ratio` is applied.
+            Format: [x_min, x_max, y_min, y_max]. If `None`, the mask is applied to the whole domain. Defaults to `None`.
+        figsize (Optional[Tuple[float, float]], optional): Figure size. Defaults to (5,5).
+        vmin (Optional[float], optional): Minimum value for colormap. Defaults to None.
+        vmax (Optional[float], optional): Maximum value for colormap. Defaults to None.
+        cmap (Optional[str], optional): Colormap. Defaults to "coolwarm".
+        file (Optional[str], optional): File name to save plot. Defaults to None.
+        fontsize (Optional[int], optional): Font size. Defaults to 13.
+
+    Returns:
+        None
+    """
+
     # Check u1, u2 and bound have the same number of nodes
     assert u1.size(0) == u2.size(0), "u1 and u2 must have the same number of nodes."
     if bound is not None:
@@ -212,7 +290,9 @@ def compare_fields(pos: torch.Tensor,
     # Plot
     fig, ax = plt.subplots(nrows, 3, figsize=(3*figsize[0],figsize[1]*nrows))
     if bound is not None:
-        triang = TriangulationSolidMask(pos, bound)
+        triang = triang_boundary_mask(pos, bound, boundary_idx=boundary_idx)
+    elif tri_ratio is not None:
+        triang = triang_small_tri_mask(pos, tri_ratio, box=box)
     else:
         triang = tri.Triangulation(pos[:,0], pos[:,1])
     for row in range(nrows):
@@ -222,10 +302,9 @@ def compare_fields(pos: torch.Tensor,
         ax[row,0].set_aspect('equal')
         ax[row,1].set_aspect('equal')
         ax[row,2].set_aspect('equal')
-    if labels is not None:
-        for row, label in enumerate(labels): ax[row,1].set_title("t = "+str(label)+"dt", rotation=0, fontsize=fontsize)
-    else:
-        for row in range(nrows): ax[row,1].set_title("t = "+str(row+1)+"dt", rotation=0, fontsize=fontsize)
+    # Add titles
+    for row in range(nrows):
+        ax[row,1].set_title("t = "+str(row+1)+"dt", rotation=0, fontsize=fontsize)
     # Add colorbars
     cax0 = fig.add_axes([ax[0,0].get_position().x0-0.05,ax[0,0].get_position().y0,0.01,ax[0,0].get_position().height])
     plt.colorbar(im0, cax=cax0)

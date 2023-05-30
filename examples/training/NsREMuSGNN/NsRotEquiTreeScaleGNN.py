@@ -6,17 +6,17 @@
 
 import torch
 from torchvision import transforms
-import graphs4cfd as gcfd
+import graphs4cfd as gfd
 
 
 # Training configuration
-config = gcfd.models.Config(
+config = gfd.nn.TrainConfig(
     name            = 'NsRotEquiThreeScaleGNN',
     folder          = '.',
     tensor_board    = '.',
     chk_interval    = 1,
-    training_loss   = gcfd.losses.GraphLoss(lambda_d=0.25),
-    validation_loss = gcfd.losses.GraphLoss(),
+    training_loss   = gfd.nn.losses.GraphLoss(lambda_d=0.25),
+    validation_loss = gfd.nn.losses.GraphLoss(),
     epochs          = 500,
     num_steps       = [i for i in range(1,11)],
     add_steps       = {'tolerance': 0.002, 'loss': 'training'},
@@ -32,16 +32,16 @@ config = gcfd.models.Config(
 # Training datasets
 path = "<Path to dataset NsEllipse.h5>" # Replace with path to NsEllipse.h5 (available at https://doi.org/10.5281/zenodo.7892171)
 transform = transforms.Compose([
-    gcfd.transforms.RandomNodeSubset(0.8),
-    gcfd.transforms.ScaleNs({'u': (-1.8,1.8), 'v': (-1.8,1.8), "Re": (500,1000)}, format='uv'),
-    gcfd.transforms.BuildRemusGraph(num_levels=3, k=5, scale_edge_length=(0.1, 0.2, 0.4)),
-    gcfd.transforms.AddUniformNoise(0.01),
+    gfd.transforms.RandomNodeSubset(0.8),
+    gfd.transforms.ScaleNs({'u': (-1.8,1.8), 'v': (-1.8,1.8), "Re": (500,1000)}, format='uv'),
+    gfd.transforms.BuildRemusGraph(num_levels=3, k=5, scale_edge_length=(0.1, 0.2, 0.4)),
+    gfd.transforms.AddUniformNoise(0.01),
 ])
-train_set = gcfd.datasets.NsEllipse(path=path, training_info={"n_in":1, "n_out":10, "step":1, "T":101}, transform=transform, preload=True) # If not enough memory, set preload=False
+train_set = gfd.datasets.NsEllipse(format='uv', path=path, training_info={"n_in":1, "n_out":10, "step":1, "T":101}, transform=transform) # If enough memory, set preload=True
 batch_transform = transforms.Compose([
-     gcfd.transforms.BuildKnnInterpWeights(5),
+     gfd.transforms.BuildKnnInterpWeights(5),
 ])
-train_loader = gcfd.DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, transform=batch_transform, num_workers=4)   
+train_loader = gfd.DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, transform=batch_transform, num_workers=4)   
 
 
 # Model definition
@@ -74,12 +74,12 @@ arch = {
     "mp33": ((128+2*128, (128,128), True), (128+128, (128,128), True)),
     "mp34": ((128+2*128, (128,128), True), (128+128, (128,128), True)),
     # Undown_mping 3->2
-    "up_mp32": ((128+128, (128,128,128), True),), ###### WRONG
+    "up_mp32": (128+128, (128,128,128), True),
     # Level 2
     "mp221": ((128+2*128, (128,128), True), (128+128, (128,128), True)),
     "mp222": ((128+2*128, (128,128), True), (128+128, (128,128), True)),
     # Undown_mping 2->1
-    "up_mp21": ((128+128, (128,128,128), True),), ###### WRONG
+    "up_mp21": (128+128, (128,128,128), True),
     # Level 1
     "mp121": ((128+2*128, (128,128), True), (128+128, (128,128), True)),
     "mp122": ((128+2*128, (128,128), True), (128+128, (128,128), True)),
@@ -88,7 +88,7 @@ arch = {
     # Decoder
     "decoder": (128, (128,1), False),
 }
-model = gcfd.nn.NsRotEquiTreeScaleGNN(arch=arch)
+model = gfd.nn.NsRotEquiTreeScaleGNN(arch=arch)
 
 
 # Training

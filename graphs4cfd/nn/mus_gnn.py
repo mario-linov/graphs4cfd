@@ -1,16 +1,18 @@
+import os
 import torch
 import torch.nn.functional as F
 from typing import Optional
 
-from .model import Model
+from .model import GNN
 from .blocks import MLP, MP, DownMP, UpMP
 from ..graph import Graph
 
 
-class NsOneScaleGNN(Model):
+class NsOneScaleGNN(GNN):
     """The 1S-GNN for incompressible flow inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -28,10 +30,22 @@ class NsOneScaleGNN(Model):
         # Decoder
         "decoder": (128, (128,128,3), False),
     }
+    ```
+
+    Args:
+        model (str, optional): The name of the model to load. Models available are:
+            - "1S-GNN-NsCircle-v1": The 1S-GNN trained on the NsCircle dataset.
+            Defaults to `None`.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs) -> None:
+        if model is not None:
+            if model == "1S-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuSGNN/NsOneScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -83,10 +97,11 @@ class NsOneScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
 
 
-class NsTwoScaleGNN(Model):
+class NsTwoScaleGNN(GNN):
     """The 2S-GNN for incompressible flow inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -97,13 +112,13 @@ class NsTwoScaleGNN(Model):
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp113": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp114": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.15),
+        "down_mp12": (2+128, (128,128,128), True),
         # Level 2
         "mp21": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp22": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp23": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp24": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.15),
+        "up_mp21": (2+128+128, (128,128,128), True),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
@@ -111,11 +126,21 @@ class NsTwoScaleGNN(Model):
         "mp124": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
         "decoder": (128, (128,128,3), False),
-    }    
+    }
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs) -> None:
+        if model is not None:
+            if model == "2S-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuSGNN/NsTwoScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -128,14 +153,14 @@ class NsTwoScaleGNN(Model):
         self.mp113 = MP(*arch["mp113"])
         self.mp114 = MP(*arch["mp114"])
         # Downsampling to level 2
-        self.down_mp12 = DownMP(*arch["down_mp12"], 1)
+        self.down_mp12 = DownMP(arch["down_mp12"], 1)
         # Level 2
         self.mp21 = MP(*arch["mp21"])
         self.mp22 = MP(*arch["mp22"])
         self.mp23 = MP(*arch["mp23"])
         self.mp24 = MP(*arch["mp24"])
         # Upsampling to level 1
-        self.up_mp21 = UpMP(*arch["up_mp21"], 2)
+        self.up_mp21 = UpMP(arch["up_mp21"], 2)
         # Level 1
         self.mp121 = MP(*arch["mp121"])
         self.mp122 = MP(*arch["mp122"])
@@ -193,10 +218,11 @@ class NsTwoScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
 
 
-class NsThreeScaleGNN(Model):
+class NsThreeScaleGNN(GNN):
     """The 3S-GNN for incompressible flow inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -207,21 +233,21 @@ class NsThreeScaleGNN(Model):
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp113": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp114": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.15),
+        "down_mp12": (2+128, (128,128,128), True),
         # Level 2
         "mp211": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp212": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp23": ((2+128, (128,128,128), True), 0.30),
+        "down_mp23": (2+128, (128,128,128), True),
         # Level 3
         "mp31": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp32": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp33": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp34": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp32": ((2+128+128, (128,128,128), True), 0.30),
+        "up_mp32": (2+128+128, (128,128,128), True),
         # Level 2
         "mp221": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp222": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.15),
+        "up_mp21": (2+128+128, (128,128,128), True),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
@@ -229,11 +255,21 @@ class NsThreeScaleGNN(Model):
         "mp124": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
         "decoder": (128, (128,128,3), False),
-    }   
+    }  
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None. 
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs) -> None:
+        if model is not None:
+            if model == "3S-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuSGNN/NsThreeScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -246,24 +282,24 @@ class NsThreeScaleGNN(Model):
         self.mp113 = MP(*arch["mp113"])
         self.mp114 = MP(*arch["mp114"])
         # Downsampling to level 2
-        self.down_mp12 = DownMP(arch["down_mp12"][0], 1)
+        self.down_mp12 = DownMP(arch["down_mp12"], 1)
         # Level 2
         self.mp211 = MP(*arch["mp211"])
         self.mp212 = MP(*arch["mp212"])
         # Downsampling to level 3
-        self.down_mp23 = DownMP(arch["down_mp23"][0], 2)
+        self.down_mp23 = DownMP(arch["down_mp23"], 2)
         # Level 3
         self.mp31  = MP(*arch["mp31"])
         self.mp32  = MP(*arch["mp32"])
         self.mp33  = MP(*arch["mp33"])
         self.mp34  = MP(*arch["mp34"])
         # Upsampling to level 2
-        self.up_mp32 = UpMP(arch["up_mp32"][0], 3)
+        self.up_mp32 = UpMP(arch["up_mp32"], 3)
         # Level 2
         self.mp221 = MP(*arch["mp221"])
         self.mp222 = MP(*arch["mp222"])
         # Upsampling to level 1
-        self.up_mp21 = UpMP(arch["up_mp21"][0], 2)
+        self.up_mp21 = UpMP(arch["up_mp21"], 2)
         # Level 1
         self.mp121 = MP(*arch["mp121"])
         self.mp122 = MP(*arch["mp122"])
@@ -337,10 +373,11 @@ class NsThreeScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
     
 
-class NsFourScaleGNN(Model):
+class NsFourScaleGNN(GNN):
     """The 4S-GNN for incompressible flow inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -351,29 +388,29 @@ class NsFourScaleGNN(Model):
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp113": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp114": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.15),
+        "down_mp12": (2+128, (128,128,128), True),
         # Level 2
         "mp211": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp212": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp23": ((2+128, (128,128,128), True), 0.30),
+        "down_mp23": (2+128, (128,128,128), True),
         # Level 3
         "mp311": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp312": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp34": ((2+128, (128,128,128), True), 0.60),
+        "down_mp34": (2+128, (128,128,128), True),
         # Level 4
         "mp41": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp42": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp43": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp44": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp43": ((2+128+128, (128,128,128), True), 0.60),
+        "up_mp43": (2+128+128, (128,128,128), True),
         # Level 3
         "mp321": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp322": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp32": ((2+128+128, (128,128,128), True), 0.30),
+        "up_mp32": (2+128+128, (128,128,128), True),
         # Level 2
         "mp221": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp222": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.15),
+        "up_mp21": (2+128+128, (128,128,128), True),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
@@ -382,10 +419,20 @@ class NsFourScaleGNN(Model):
         # Decoder
         "decoder": (128, (128,128,3), False),
     }
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "4S-GNN-NsCircle-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/NsMuSGNN/NsFourScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -398,34 +445,34 @@ class NsFourScaleGNN(Model):
         self.mp113 = MP(*arch["mp113"])
         self.mp114 = MP(*arch["mp114"])
         # Downsampling to level 2
-        self.down_mp12 = DownMP(arch["down_mp12"][0], 1)
+        self.down_mp12 = DownMP(arch["down_mp12"], 1)
         # Level 2
         self.mp211 = MP(*arch["mp211"])
         self.mp212 = MP(*arch["mp212"])
         # Downsampling to level 3
-        self.down_mp23 = DownMP(arch["down_mp23"][0], 2)
+        self.down_mp23 = DownMP(arch["down_mp23"], 2)
         # Level 3
         self.mp311 = MP(*arch["mp311"])
         self.mp312 = MP(*arch["mp312"])
         # Downsampling to level 4
-        self.down_mp34 = DownMP(arch["down_mp34"][0], 3)
+        self.down_mp34 = DownMP(arch["down_mp34"], 3)
         # Level 4
         self.mp41 = MP(*arch["mp41"])
         self.mp42 = MP(*arch["mp42"])
         self.mp43 = MP(*arch["mp43"])
         self.mp44 = MP(*arch["mp44"])
         # Upsampling to level 3
-        self.up_mp43 = UpMP(arch["up_mp43"][0], 4)
+        self.up_mp43 = UpMP(arch["up_mp43"], 4)
         # Level 3
         self.mp321  = MP(*arch["mp321"])
         self.mp322  = MP(*arch["mp322"])
         # Upsampling to level 2
-        self.up_mp32 = UpMP(arch["up_mp32"][0], 3)
+        self.up_mp32 = UpMP(arch["up_mp32"], 3)
         # Level 2
         self.mp221 = MP(*arch["mp221"])
         self.mp222 = MP(*arch["mp222"])
         # Upsampling to level 1
-        self.up_mp21 = UpMP(arch["up_mp21"][0], 2)
+        self.up_mp21 = UpMP(arch["up_mp21"], 2)
         # Level 1
         self.mp121 = MP(*arch["mp121"])
         self.mp122 = MP(*arch["mp122"])
@@ -516,10 +563,11 @@ class NsFourScaleGNN(Model):
     
 
 
-class AdvOneScaleGNN(Model):
+class AdvOneScaleGNN(GNN):
     """The 1S-GNN for advection inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -533,10 +581,22 @@ class AdvOneScaleGNN(Model):
         # Decoder
         "decoder": (128, (128,128,1), False),
     }
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Available models are:
+            - "1S-GNN-UniformAdv-v1": 1S-GNN from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
+            Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "1S-GNN-UniformAdv-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/AdvMuSGNN/AdvOneScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -576,10 +636,11 @@ class AdvOneScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
 
 
-class AdvTwoScaleGNN(Model):
+class AdvTwoScaleGNN(GNN):
     """The 2S-GNN for advection inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -588,23 +649,33 @@ class AdvTwoScaleGNN(Model):
         # Level 1
         "mp111": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.02),
+        "down_mp12": (2+128, (128,128,128), True),
         # Level 2
         "mp21": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp22": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp23": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp24": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.02),
+        "up_mp21": (2+128+128, (128,128,128), True),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
         "decoder": (128, (128,128,1), False),
     }
+    ```
+
+    Args:
+        model (str, optional): Name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "2S-GNN-UniformAdv-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/AdvMuSGNN/AdvTwoScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch):
         self.arch = arch
@@ -615,14 +686,14 @@ class AdvTwoScaleGNN(Model):
         self.mp111 = MP(*arch["mp111"])
         self.mp112 = MP(*arch["mp112"])
         # Pooling to level 2
-        self.down_mp12 = DownMP(*arch["down_mp12"], 1)
+        self.down_mp12 = DownMP(arch["down_mp12"], 1)
         # Level 2
         self.mp21 = MP(*arch["mp21"])
         self.mp22 = MP(*arch["mp22"])
         self.mp23 = MP(*arch["mp23"])
         self.mp24 = MP(*arch["mp24"])
         # Undown_mping to level 1
-        self.up_mp21 = UpMP(*arch["up_mp21"], 2)
+        self.up_mp21 = UpMP(arch["up_mp21"], 2)
         # Level 1
         self.mp121 = MP(*arch["mp121"])
         self.mp122 = MP(*arch["mp122"])
@@ -670,10 +741,11 @@ class AdvTwoScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
 
 
-class AdvThreeScaleGNN(Model):
+class AdvThreeScaleGNN(GNN):
     """The 3S-GNN for advection inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -682,31 +754,41 @@ class AdvThreeScaleGNN(Model):
         # Level 1
         "mp111": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.02),
+        "down_mp12": (2+128, (128,128,128), True),
         # Level 2
         "mp211": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp212": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp23": ((2+128, (128,128,128), True), 0.04),
+        "down_mp23": (2+128, (128,128,128), True),
         # Level 3
         "mp31": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp32": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp33": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp34": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp32": ((2+128+128, (128,128,128), True), 0.04),
+        "up_mp32": (2+128+128, (128,128,128), True),
         # Level 2
         "mp221": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp222": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.02),
+        "up_mp21": (2+128+128, (128,128,128), True),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
         "decoder": (128, (128,128,1), False),
     }
+    ```
+
+    Args:
+        model (str, optional): The name of the model to load. Defaults to None.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model:str = None, *args, **kwargs):
+        if model is not None:
+            if model == "3S-GNN-UniformAdv-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/AdvMuSGNN/AdvThreeScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -717,24 +799,24 @@ class AdvThreeScaleGNN(Model):
         self.mp111 = MP(*arch["mp111"])
         self.mp112 = MP(*arch["mp112"])
         # Pooling to level 2
-        self.down_mp12 = DownMP(arch["down_mp12"][0], 1)
+        self.down_mp12 = DownMP(arch["down_mp12"], 1)
         # Level 2
         self.mp211 = MP(*arch["mp211"])
         self.mp212 = MP(*arch["mp212"])
         # Pooling to level 3
-        self.down_mp23 = DownMP(arch["down_mp23"][0], 2)
+        self.down_mp23 = DownMP(arch["down_mp23"], 2)
         # Level 3
         self.mp31  = MP(*arch["mp31"])
         self.mp32  = MP(*arch["mp32"])
         self.mp33  = MP(*arch["mp33"])
         self.mp34  = MP(*arch["mp34"])
         # Undown_mping to level 2
-        self.up_mp32 = UpMP(arch["up_mp32"][0], 3)
+        self.up_mp32 = UpMP(arch["up_mp32"], 3)
         # Level 2
         self.mp221 = MP(*arch["mp221"])
         self.mp222 = MP(*arch["mp222"])
         # Undown_mping to level 1
-        self.up_mp21 = UpMP(arch["up_mp21"][0], 2)
+        self.up_mp21 = UpMP(arch["up_mp21"], 2)
         # Level 1
         self.mp121 = MP(*arch["mp121"])
         self.mp122 = MP(*arch["mp122"])
@@ -798,10 +880,11 @@ class AdvThreeScaleGNN(Model):
         return graph.field[:,-self.num_fields:] + output
 
 
-class AdvFourScaleGNN(Model):
+class AdvFourScaleGNN(GNN):
     """The 4S-GNN for advection inference from Lino et al. (2022) (https://doi.org/10.1063/5.0097679).
 
     In that work, the hyperparameters were:
+    ```python
     arch = {
         ################ Edge-functions ################## Node-functions ##############
         # Encoder
@@ -810,39 +893,49 @@ class AdvFourScaleGNN(Model):
         # Level 1
         "mp111": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp112": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp12": ((2+128, (128,128,128), True), 0.02),
+        "down_mp12": (2+128, (128,128,128), True),
         # Level 2
         "mp211": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp212": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp23": ((2+128, (128,128,128), True), 0.04),
+        "down_mp23": (2+128, (128,128,128), True),
         # Level 3
         "mp311": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp312": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "down_mp34": ((2+128, (128,128,128), True), 0.08),
+        "down_mp34": (2+128, (128,128,128), True),
         # Level 4
         "mp41": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp42": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp43": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp44": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp43": ((2+128+128, (128,128,128), True), 0.08),
+        "up_mp43": (2+128+128, (128,128,128), True),
         # Level 3
         "mp321": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp322": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp32": ((2+128+128, (128,128,128), True), 0.04),
+        "up_mp32": (2+128+128, (128,128,128), True),
         # Level 2
         "mp221": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp222": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
-        "up_mp21": ((2+128+128, (128,128,128), True), 0.02),
+        "up_mp21": (2+128+128, (128,128,128), True),
         # Level 1
         "mp121": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         "mp122": ((128+2*128, (128,128,128), True), (128+128, (128,128,128), True)),
         # Decoder
         "decoder": (128, (128,128,1), False),
     }
+    ```
+
+    Args:
+        model (str, optional): The model to load. Defaults to None.
     """
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: str = None, *args, **kwargs):
+        if model is not None:
+            if model == "4S-GNN-UniformAdv-v1":
+                super().__init__(arch=None, weights=None, checkpoint=os.path.join(os.path.dirname(__file__), 'weights/AdvMuSGNN/AdvFourScaleGNN.chk'), *args, **kwargs)
+            else:
+                raise ValueError(f"Model {model} not recognized.")
+        else:
+            super().__init__(*args, **kwargs)
 
     def load_arch(self, arch: dict):
         self.arch = arch
@@ -853,34 +946,34 @@ class AdvFourScaleGNN(Model):
         self.mp111 = MP(*arch["mp111"])
         self.mp112 = MP(*arch["mp112"])
         # Pooling to level 2
-        self.down_mp12 = DownMP(arch["down_mp12"][0], 1)
+        self.down_mp12 = DownMP(arch["down_mp12"], 1)
         # Level 2
         self.mp211 = MP(*arch["mp211"])
         self.mp212 = MP(*arch["mp212"])
         # Pooling to level 3
-        self.down_mp23 = DownMP(arch["down_mp23"][0], 2)
+        self.down_mp23 = DownMP(arch["down_mp23"], 2)
         # Level 3
         self.mp311 = MP(*arch["mp311"])
         self.mp312 = MP(*arch["mp312"])
         # Pooling to level 4
-        self.down_mp34 = DownMP(arch["down_mp34"][0], 3)
+        self.down_mp34 = DownMP(arch["down_mp34"], 3)
         # Level 4
         self.mp41 = MP(*arch["mp41"])
         self.mp42 = MP(*arch["mp42"])
         self.mp43 = MP(*arch["mp43"])
         self.mp44 = MP(*arch["mp44"])
         # Undown_mping to level 3
-        self.up_mp43 = UpMP(arch["up_mp43"][0], 4)
+        self.up_mp43 = UpMP(arch["up_mp43"], 4)
         # Level 3
         self.mp321  = MP(*arch["mp321"])
         self.mp322  = MP(*arch["mp322"])
         # Undown_mping to level 2
-        self.up_mp32 = UpMP(arch["up_mp32"][0], 3)
+        self.up_mp32 = UpMP(arch["up_mp32"], 3)
         # Level 2
         self.mp221 = MP(*arch["mp221"])
         self.mp222 = MP(*arch["mp222"])
         # Undown_mping to level 1
-        self.up_mp21 = UpMP(arch["up_mp21"][0], 2)
+        self.up_mp21 = UpMP(arch["up_mp21"], 2)
         # Level 1
         self.mp121 = MP(*arch["mp121"])
         self.mp122 = MP(*arch["mp122"])

@@ -82,45 +82,51 @@ class TrainConfig():
         return self.__dict__.get(key)
 
 
-class Model(nn.Module):
+class GNN(nn.Module):
+    r"""Base class for all the GNN models.
 
-
+    Args:
+        arch (Optional[Union[None,dict]], optional): Dictionary with the model architecture. Defaults to `None`.
+        weights (Optional[Union[None,str]], optional): Path of the weights file. Defaults to `None`.
+        model (Optional[Union[None,str]], optional): Path of the checkpoint file. Defaults to `None`.
+        device (Optional[torch.device], optional): Device where the model is loaded. Defaults to `torch.device('cpu')`.
+    """
 
     def __init__(self,
                  arch: Optional[Union[None,dict]] = None,
-                 weigths: Optional[Union[None,str]] = None,
-                 model: Optional[Union[None,str]] = None,
+                 weights: Optional[Union[None,str]] = None,
+                 checkpoint: Optional[Union[None,str]] = None,
                  device: Optional[torch.device] = torch.device('cpu')):
         """Base class for all the models.
         
         Args:
             arch (Optional[Union[None,dict]], optional): Dictionary with the model architecture. Defaults to `None`.
-            weigths (Optional[Union[None,str]], optional): Path of the weigths file. Defaults to `None`.
+            weights (Optional[Union[None,str]], optional): Path of the weights file. Defaults to `None`.
             model (Optional[Union[None,str]], optional): Path of the checkpoint file. Defaults to `None`.
             device (Optional[torch.device], optional): Device where the model is loaded. Defaults to `torch.device('cpu')`.
         """
         super().__init__()
         self.device = device
-        self.load_model(arch, weigths, model)
+        self.load_model(arch, weights, checkpoint)
 
-    def load_model(self, arch, weigths, model):
-        """Loads the model architecture from a arch dictionary and its weigths from a weigths file, or loads the model from a checkpoint file."""
-        if arch is not None and model is None:
+    def load_model(self, arch, weights, checkpoint):
+        """Loads the model architecture from a arch dictionary and its weights from a weights file, or loads the model from a checkpoint file."""
+        if arch is not None and checkpoint is None:
             self.load_arch(arch)
             # To device
             self.to(self.device)
-            if weigths is not None:
-                self.load_state_dict(torch.load(weigths, map_location=self.device))
+            if weights is not None:
+                self.load_state_dict(torch.load(weights, map_location=self.device))
             # Number of output fields
             self.num_fields = arch["decoder"][1][-1] if 'decoder' in arch.keys() else None
-        elif arch is None and weigths is None and model is not None:
-            model = torch.load(model, map_location=self.device)
-            self.load_arch(model['arch'])
+        elif arch is None and weights is None and checkpoint is not None:
+            checkpoint = torch.load(checkpoint, map_location=self.device)
+            self.load_arch(checkpoint['arch'])
             # To device
             self.to(self.device)
-            self.load_state_dict(model['weigths'])
+            self.load_state_dict(checkpoint['weights'])
             # Number of output fields
-            self.num_fields = model['arch']["decoder"][1][-1] if 'decoder' in model['arch'].keys() else None
+            self.num_fields = checkpoint['arch']["decoder"][1][-1] if 'decoder' in checkpoint['arch'].keys() else None
         return
 
 
@@ -146,7 +152,7 @@ class Model(nn.Module):
     def fit(self,
             train_config: TrainConfig,
             train_loader: DataLoader,
-            test_loader: Union[None, DataLoader] = None):
+            val_loader: Union[None, DataLoader] = None):
         """Trains the model.
         
         Args:
@@ -169,7 +175,7 @@ class Model(nn.Module):
         if train_config['checkpoint'] is not None and os.path.exists(train_config['checkpoint']):
             print("Training from an existing check-point:", train_config['checkpoint'])
             checkpoint = torch.load(train_config['checkpoint'], map_location=self.device)
-            self.load_state_dict(checkpoint['weigths'])
+            self.load_state_dict(checkpoint['weights'])
             optimiser = torch.optim.Adam(self.parameters(), lr=checkpoint['lr'])
             optimiser.load_state_dict(checkpoint['optimiser'])
             if train_config['scheduler'] is not None: 
@@ -182,7 +188,7 @@ class Model(nn.Module):
             # If a .chk is given but it does not exist such file, notify the user
             if train_config['checkpoint'] is not None:
                 print("Not matching check-point file:", train_config['checkpoint'])
-            print('Training from scratch.')
+            print('Training from randomly initialised weights')
             optimiser = optim.Adam(self.parameters(), lr=train_config['lr'])
             if train_config['scheduler'] is not None: scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimiser, factor=train_config['scheduler']['factor'], patience=train_config['scheduler']['patience'], eps=0.)
             initial_epoch = 1
@@ -230,7 +236,7 @@ class Model(nn.Module):
                         loss.backward()
                     # Save training loss and gradients norm before applying gradient clipping to the weights
                     training_loss  += loss.item()/n_out
-                    gradients_norm += self.grad_norm2(self.parameters())/n_out
+                    gradients_norm += self.grad_norm2()/n_out
                     # Update the weights
                     if train_config['mixed_precision']:
                         # Clip the gradients
@@ -251,12 +257,12 @@ class Model(nn.Module):
             # Display on terminal
             print(f"Epoch: {epoch:4d}, Training   loss: {training_loss:.4e}, Gradients: {gradients_norm:.4e}")
             # Testing
-            if test_loader is not None:
+            if val_loader is not None:
                 validation_criterion = train_config['validation_loss']
                 self.eval()
                 with torch.no_grad(): 
                     validation_loss = 0.
-                    for iteration, data in enumerate(test_loader):
+                    for iteration, data in enumerate(val_loader):
                         data = data.to(self.device)
                         for t in range(max_n_out):
                             if t > 0:
@@ -268,7 +274,7 @@ class Model(nn.Module):
             # Log in TensorBoard
             if train_config['tensor_board'] is not None:
                 writer.add_scalar('Loss/train', training_loss,   epoch)
-                if test_loader: writer.add_scalar('Loss/test',  validation_loss, epoch)
+                if val_loader: writer.add_scalar('Loss/test',  validation_loss, epoch)
             # Update lr
             if train_config['scheduler']['loss'][:2] == 'tr':
                 scheduler_loss = training_loss 
@@ -331,7 +337,7 @@ class Model(nn.Module):
         The saved file can be used to resume training with the `graphs4cfd.nn.model.Model.fit` method."""
         checkpoint = {
             'arch'     : self.arch,
-            'weigths'  : self.state_dict(),
+            'weights'  : self.state_dict(),
             'optimiser': optimiser.state_dict(),
             'n_out'    : n_out,
             'lr'       : optimiser.param_groups[0]['lr'],

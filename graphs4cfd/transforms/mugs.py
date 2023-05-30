@@ -66,14 +66,14 @@ class GuillardCoarseningAndConnectKNN():
         if num_levels > 2:
             # Coarsen level 2
             graph.coarse_mask3 = torch.zeros_like(graph.coarse_mask2, dtype=torch.bool)
-            graph.coarse_mask3[graph.coarse_mask2] = self.guillard_coarsening(graph.edge_index2, graph.coarse_mask2.sum()) # Mask applied to V^1 to obtain V^3
+            graph.coarse_mask3[graph.coarse_mask2] = guillard_coarsening(graph.edge_index2, graph.coarse_mask2.sum()) # Mask applied to V^1 to obtain V^3
             coarse_index3 = graph.coarse_mask3.nonzero().squeeze() # V^1-index of the nodes in V^3
             # Connect level 3
             graph.edge_index3, graph.edge_attr3 = connect_knn(graph.pos[coarse_index3], self.k[2], period=self.period)
             if num_levels > 3:
                 # Coarsen level 3
                 graph.coarse_mask4 = torch.zeros_like(graph.coarse_mask3, dtype=torch.bool)
-                graph.coarse_mask4[graph.coarse_mask3] = self.guillard_coarsening(graph.edge_index3, graph.coarse_mask3.sum()) # Mask applied to V^1 to obtain V^4
+                graph.coarse_mask4[graph.coarse_mask3] = guillard_coarsening(graph.edge_index3, graph.coarse_mask3.sum()) # Mask applied to V^1 to obtain V^4
                 coarse_index4 = graph.coarse_mask4.nonzero().squeeze() # V^1-index of the nodes in V^4
                 # Connect level 4
                 graph.edge_index4, graph.edge_attr4 = connect_knn(graph.pos[coarse_index4], self.k[3], period=self.period)
