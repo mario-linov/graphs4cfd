@@ -10,9 +10,17 @@
 
 ## Contents
 <!-- Table of contents -->
-- [Installation](#installation)
 - [Implemented GNN models](#implemented-gnn-models)
+- [Installation](#installation)
+- [Examples](#examples)
 - [Cite](#cite)
+
+## Implemented GNN models
+
+To date, Graphs4CFD supports the following GNN models:
+- MuS-GNN - Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
+- REMuS-GNN - Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
+- Mult-scale GNNs with low-resolution graphs obtained by Guillard's coarsening - Appendix C.3 in Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
 
 ## Installation
 
@@ -33,15 +41,16 @@ Once Graphs4CFD has been installed, it can be imported in Python as follows:
 import graphs4cfd as gfd
 ```
 
-There are examples of how to use Graphs4CFD for training and inference in the [examples](https://github.com/mario-linov/graphs4cfd/tree/main/examples) folder.
+## Examples
 
-## Implemented GNN models
+There are examples of how to use Graphs4CFD for training and inference in the [examples/](https://github.com/mario-linov/graphs4cfd/tree/main/examples) folder.
+To clone the jupyter notebooks in the [inference/](https://github.com/mario-linov/graphs4cfd/tree/main/examples/inference) folder you need to have [Git LFS](https://git-lfs.com/) installed.
+On Ubuntu, Git LFS can be installed painlessly by running:
 
-To date, Graphs4CFD supports the following GNN models:
-- MuS-GNN - Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
-- REMuS-GNN - Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
-- Mult-scale GNNs with low-resolution graphs obtained by Guillard's coarsening - Appendix C.3 in Lino et al. 2022 ([https://doi.org/10.1063/5.0097679](https://doi.org/10.1063/5.0097679))
-
+```bash
+curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+sudo apt-get install git-lfs
+```
 
 ## Cite
 
