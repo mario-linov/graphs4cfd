@@ -44,7 +44,8 @@ import graphs4cfd as gfd
 ## Examples
 
 There are examples of how to use Graphs4CFD for training and inference in the [examples/](https://github.com/mario-linov/graphs4cfd/tree/main/examples) folder.
-To clone the jupyter notebooks in the [inference/](https://github.com/mario-linov/graphs4cfd/tree/main/examples/inference) folder you need to have [Git LFS](https://git-lfs.com/) installed.
+
+:warning:To clone the jupyter notebooks in the [inference/](https://github.com/mario-linov/graphs4cfd/tree/main/examples/inference) folder you need to have [Git LFS](https://git-lfs.com/) installed.
 On Ubuntu, Git LFS can be installed painlessly by running:
 
 ```bash
