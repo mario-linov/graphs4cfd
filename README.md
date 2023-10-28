@@ -31,7 +31,7 @@ To install Graphs4CFD and its dependecies (except PyTorch), run the following co
 ```bash
 git clone git@github.com:mario-linov/graphs4cfd.git
 cd graphs4cfd
-pip intall -e .
+pip install -e . .
 ```
 
 This also installs [PyG](https://pytorch-geometric.readthedocs.io/en/latest/) and compiles and installs [PyTorch Cluster](https://github.com/rusty1s/pytorch_cluster), so it may take a while.
