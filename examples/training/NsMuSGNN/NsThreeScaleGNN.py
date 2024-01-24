@@ -35,16 +35,29 @@ transform = transforms.Compose([
     gfd.transforms.ConnectKNN(6, period=[None, "auto"]),
     gfd.transforms.ScaleNs({'u': (-2.1,2.6), 'v': (-2.25,2.1), 'p': (-3.7,2.35), 'Re': (500,1000)}, format='uvp'),
     gfd.transforms.ScaleEdgeAttr(0.1),
-        gfd.transforms.GridClustering([0.15, 0.30]),
     gfd.transforms.RandomGraphRotation(eq='ns', format='uvp'),
     gfd.transforms.RandomGraphFlip(eq='ns', format='uvp'),
     gfd.transforms.AddUniformNoise(0.01)
 ])
+batch_transform = transforms.Compose([
+    gfd.transforms.GridClustering([0.15, 0.30]),
+])
 dataset = gfd.datasets.NsCircle(format='uvp', path=path, training_info={"n_in":1, "n_out":train_config['num_steps'][-1], "step":1, "T":100}, transform=transform) # If enough memory, set preload=True
 train_set, test_set = torch.utils.data.random_split(dataset, [1000,32])
-train_loader = gfd.DataLoader(train_set, batch_size=train_config['batch_size'], shuffle=True,  num_workers=4)   
-val_loader  = gfd.DataLoader(test_set,  batch_size=train_config['batch_size'], shuffle=False, num_workers=4)   
-
+train_loader = gfd.DataLoader(
+    train_set,
+    batch_size  = train_config['batch_size'],
+    shuffle     = True,
+    transform   = batch_transform,
+    num_workers = 4
+)   
+val_loader  = gfd.DataLoader(
+    test_set, 
+    batch_size  = train_config['batch_size'],
+    shuffle     = False,
+    transform   = batch_transform,
+    num_workers = 4
+)   
 
 # Model definition
 arch = {

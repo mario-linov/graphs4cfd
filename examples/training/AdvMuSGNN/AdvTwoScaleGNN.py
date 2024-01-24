@@ -35,7 +35,6 @@ transform1 = transforms.Compose([
     gfd.transforms.InterpolateNodesToXml("<Path to folder AdvBox_nodes_xml>"), # Replace with path to folder /box_nodes_xml (available at https://doi.org/10.5281/zenodo.7944488
     gfd.transforms.ConnectKNN(6, period=(1, 1)),
     gfd.transforms.ScaleEdgeAttr(0.01),
-    gfd.transforms.GridClustering([0.02]),
     gfd.transforms.RandomGraphRotation(eq='adv'),
     gfd.transforms.RandomGraphFlip(eq='adv'),
     gfd.transforms.AddUniformNoise(0.01)
@@ -47,19 +46,34 @@ transform2 = transforms.Compose([
     gfd.transforms.InterpolateNodesToXml("<Path to AdvInBox_nodes_xml>"), # Replace with path to folder /inlet_nodes_xml (available at https://doi.org/10.5281/zenodo.7944488
     gfd.transforms.ConnectKNN(6, period=(None, 0.5)),
     gfd.transforms.ScaleEdgeAttr(0.01),
-    gfd.transforms.GridClustering([0.02]),
     gfd.transforms.RandomGraphRotation(eq='adv'),
     gfd.transforms.RandomGraphFlip(eq='adv'),
     gfd.transforms.AddUniformNoise(0.01)
 ])
 dataset2 = gfd.datasets.Adv(path=path2, training_info={"n_in":1, "n_out":10, "step":2, "T":100}, transform=transform2) # If enough memory, set preload=True
 
+batch_transform = transforms.Compose([
+    gfd.transforms.GridClustering([0.02]),
+])
+
 train_set1,  test_set1 = torch.utils.data.random_split(dataset1, [1490,10])
 train_set2,  test_set2 = torch.utils.data.random_split(dataset2, [2990,10])
 train_set    = train_set1 + train_set2
 test_set     = test_set1  + test_set2
-train_loader = gfd.DataLoader(train_set, batch_size=train_config['batch_size'], shuffle=True,  num_workers=4)   
-test_loader  = gfd.DataLoader(test_set,  batch_size=train_config['batch_size'], shuffle=False, num_workers=4)   
+train_loader = gfd.DataLoader(
+    train_set,
+    batch_size  = train_config['batch_size'],
+    shuffle     = True,
+    transform   = batch_transform,
+    num_workers = 4
+)   
+test_loader  = gfd.DataLoader(
+    test_set, 
+    batch_size  = train_config['batch_size'],
+    shuffle     = False,
+    transform   = batch_transform,
+    num_workers = 4
+)   
 
 
 # Model definition
